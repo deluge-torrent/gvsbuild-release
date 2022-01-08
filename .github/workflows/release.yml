@@ -38,20 +38,23 @@ jobs:
         run: >
           $env:Path = "$env:pythonLocation;$env:pythonLocation\Scripts;$env:Path;"
 
+          $env:Path
+
           python build.py build
           --platform=${{ matrix.platform }}
           --vs-ver=${{ matrix.vs_ver }}
           --same-python
           --enable-gi
           --py-wheel
-          $env.modules
-          --skip $env.skip_modules
+          $env:modules
+          --skip $env:skip_modules
         env:
           modules: "gtk3-full pycairo pygobject lz4 enchant"
           skip_modules: "gtksourceview,emeus,clutter"
 
       - name: Zip Bundle
         run: |
+          $env:Path
           $env:Path = "C:\Program Files\7-Zip;$env:Path;"
           7z.exe a ${{ github.workspace }}\$env:release_zip $env:release_path
         env:
