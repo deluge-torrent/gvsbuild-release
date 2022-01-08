@@ -34,10 +34,6 @@ jobs:
         run: move "C:\Program Files\Git\usr\bin" "C:\Program Files\Git\usr\notbin"
         shell: cmd
 
-      - run: |
-          $env:Path
-          $env:Path = "$env:pythonLocation;$env:pythonLocation\Scripts;$env:Path;"
-
       - name: Build
         run: >
           python build.py build
@@ -50,10 +46,10 @@ jobs:
           gtk3-full pycairo pygobject lz4 enchant
 
       - name: Zip Bundle
-        run: |
-          $env:Path
-          $env:Path = "C:\Program Files\7-Zip;$env:Path;"
-          7z.exe a ${{ github.workspace }}\$env:release_zip $env:release_path
+        run: >
+          "C:\Program Files\7-Zip\7z.exe" a
+          ${{ github.workspace }}\$env:release_zip
+          $env:release_path
         env:
           release_zip: "gvsbuild-py${{ matrix.python }}-vs${{ matrix.vs_ver }}-${{ matrix.platform }}.zip"
           release_path: "C:\\gtk-build\\gtk\\${{matrix.platform}}\\release"
