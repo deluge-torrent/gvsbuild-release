@@ -34,23 +34,20 @@ jobs:
         run: move "C:\Program Files\Git\usr\bin" "C:\Program Files\Git\usr\notbin"
         shell: cmd
 
-      - name: Build
-        run: >
+      - run: |
+          $env:Path
           $env:Path = "$env:pythonLocation;$env:pythonLocation\Scripts;$env:Path;"
 
-          $env:Path
-
+      - name: Build
+        run: >
           python build.py build
           --platform=${{ matrix.platform }}
           --vs-ver=${{ matrix.vs_ver }}
           --same-python
           --enable-gi
           --py-wheel
-          $env:modules
-          --skip $env:skip_modules
-        env:
-          modules: "gtk3-full pycairo pygobject lz4 enchant"
-          skip_modules: "gtksourceview,emeus,clutter"
+          --skip gtksourceview,emeus,clutter
+          gtk3-full pycairo pygobject lz4 enchant
 
       - name: Zip Bundle
         run: |
