@@ -7,28 +7,6 @@ on:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
-jobs:
-  # This workflow contains a single job called "build"
-  build:
-    # The type of runner that the job will run on
-    runs-on: ubuntu-latest
-
-    # Steps represent a sequence of tasks that will be executed as part of the job
-    steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v2
-
-      # Runs a single command using the runners shell
-      - name: Run a one-line script
-        run: echo Hello, world!
-
-      # Runs a set of commands using the runners shell
-      - name: Run a multi-line script
-        run: |
-          echo Add other actions to build,
-          echo test, and deploy your project.
-
 jobs:
   build:
     runs-on: windows-latest
@@ -37,7 +15,7 @@ jobs:
         python: [3.9]
         platform: [x64, x86]
         vs_ver: [16]
-        
+
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v2
@@ -50,23 +28,30 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
           architecture: ${{ matrix.platform }}
-            
+
       # Temporarily move the preinstalled git, it causes errors related to cygwin.
       - name: Move git binary
         run: move "C:\Program Files\Git\usr\bin" "C:\Program Files\Git\usr\notbin"
         shell: cmd
 
       - name: Build
-        run: |
-          $env:Path = "C:\Program Files\7-Zip;$env:pythonLocation;$env:pythonLocation\Scripts;$env:Path;"
-          python build.py build --platform=${{ matrix.platform }} --vs-ver=${{ matrix.vs_ver }} --same-python --enable-gi --py-wheel $env.modules --skip $env.skip_modules
-          7z.exe a ${{ github.workspace }}\$env:release_zip $env:release_path
+        run: $env:Path = "C:\Program Files\7-Zip;$env:pythonLocation;$env:pythonLocation\Scripts;$env:Path;"
+        run: >
+          python build.py build
+          --platform=${{ matrix.platform }}
+          --vs-ver=${{ matrix.vs_ver }}
+          --same-python
+          --enable-gi
+          --py-wheel
+          $env.modules
+          --skip $env.skip_modules
+        run: 7z.exe a ${{ github.workspace }}\$env:release_zip $env:release_path
         env:
           modules: "gtk3-full pycairo pygobject lz4 enchant"
           skip_modules: "gtksourceview,emeus,clutter"
           release_zip: "gvsbuild-py${{ matrix.python }}-vs${{ matrix.vs_ver }}-${{ matrix.platform }}.zip"
-          release_path: "C:\gtk-build\gtk\${{matrix.platform}}\release"
-          
+          release_path: "C:\\gtk-build\\gtk\\${{matrix.platform}}\\release"
+
       - name: Restore git binary
         run: move "C:\Program Files\Git\usr\notbin" "C:\Program Files\Git\usr\bin"
         shell: cmd
