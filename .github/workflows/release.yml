@@ -29,6 +29,9 @@ jobs:
           python-version: ${{ matrix.python }}
           architecture: ${{ matrix.platform }}
 
+      - name: Install Build Deps
+        run: python -m pip install wheel
+
       # Temporarily move the preinstalled git, it causes errors related to cygwin.
       - name: Move git binary
         run: move "C:\Program Files\Git\usr\bin" "C:\Program Files\Git\usr\notbin"
