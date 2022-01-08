@@ -61,10 +61,10 @@ jobs:
         run: move "C:\Program Files\Git\usr\notbin" "C:\Program Files\Git\usr\bin"
         shell: cmd
 
-      #- uses: actions/upload-artifact@v2
-      #  with:
-      #    name: my-artifact
-      #    path: ${{ github.workspace }}/gvsbuild*.zip
+      - uses: actions/upload-artifact@v2
+        with:
+          name: release-artifact
+          path: ${{ github.workspace }}/gvsbuild*.zip
 
       - name: Release
         uses: softprops/action-gh-release@v1
