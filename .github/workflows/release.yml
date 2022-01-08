@@ -65,5 +65,6 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           name: latest
+          tag_name: latest
           body: gvsbuild-${{ steps.date.outputs.date }}
           files: "*.zip"
