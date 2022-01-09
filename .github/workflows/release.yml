@@ -11,8 +11,13 @@ jobs:
     strategy:
       matrix:
         python: [3.9]
-        platform: [x64, x86]
-        vs_ver: [16]
+        platform: [x64, win32]
+        vstudio: [16]
+        include:
+          - platform: x64
+            arch: x64
+          - platform: win32
+            arch: x86
 
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
@@ -25,7 +30,7 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: ${{ matrix.python }}
-          architecture: ${{ matrix.platform }}
+          architecture: ${{ matrix.arch }}
 
       - name: Install Build Deps
         run: python -m pip install wheel
@@ -37,8 +42,8 @@ jobs:
       - name: Build
         run: >
           python build.py build
-          --platform=${{ matrix.platform }}
-          --vs-ver=${{ matrix.vs_ver }}
+          --platform=${{ matrix.arch }}
+          --vs-ver=${{ matrix.vstudio }}
           --same-python
           --enable-gi
           --py-wheel
@@ -54,7 +59,7 @@ jobs:
           ${{ github.workspace }}/${{ env.release_name }}.zip
           "C:\gtk-build\gtk\${{matrix.platform}}\release"
         env:
-          release_name: "gvsbuild-py${{ matrix.python }}-vs${{ matrix.vs_ver }}-${{ matrix.platform }}"
+          release_name: "gvsbuild-py${{ matrix.python }}-vs${{ matrix.vstudio }}-${{ matrix.arch }}"
 
       - uses: actions/upload-artifact@v2
         with:
