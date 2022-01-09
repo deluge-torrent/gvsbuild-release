@@ -10,7 +10,7 @@ jobs:
     runs-on: windows-latest
     strategy:
       matrix:
-        python: [3.9]
+        python: [3.7, 3.9]
         platform: [x64, win32]
         vstudio: [16]
         include:
@@ -60,11 +60,6 @@ jobs:
           "C:\gtk-build\gtk\${{matrix.platform}}\release"
         env:
           release_name: "gvsbuild-py${{ matrix.python }}-vs${{ matrix.vstudio }}-${{ matrix.arch }}"
-
-      - uses: actions/upload-artifact@v2
-        with:
-          name: release-artifact
-          path: ${{ github.workspace }}/gvsbuild*.zip
 
       - name: Release
         uses: softprops/action-gh-release@v1
