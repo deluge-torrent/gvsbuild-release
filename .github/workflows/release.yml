@@ -61,6 +61,10 @@ jobs:
         env:
           release_name: "gvsbuild-py${{ matrix.python }}-vs${{ matrix.vstudio }}-${{ matrix.arch }}"
 
+      - name: Current Date
+        id: date
+        run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
+
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
