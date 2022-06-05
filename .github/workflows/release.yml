@@ -10,7 +10,7 @@ jobs:
     runs-on: windows-2019
     strategy:
       matrix:
-        python: [3.7, 3.9]
+        python: ["3.7", "3.9"]
         platform: [x64, win32]
         vstudio: [16]
         include:
@@ -21,33 +21,46 @@ jobs:
 
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           repository: wingtk/gvsbuild
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v3
         with:
           python-version: ${{ matrix.python }}
           architecture: ${{ matrix.arch }}
 
       - name: Install Build Deps
-        run: python -m pip install wheel
+        run: python -m pip install wheel build
+
+      - name: Install Poetry
+        run: python -m pip install poetry==1.1.13
+      - name: Configure Poetry
+        run: poetry config virtualenvs.in-project true
+      - name: Install Python Dependencies
+        run: poetry install
 
       - name: Move git binary
         # Temporarily move preinstalled git to prevent errors related to cygwin.
         run: Rename-Item "C:\Program Files\Git\usr\bin" notbin
 
+
+      - name: Pre-Build
+        run: 
+          pip install .
+
       - name: Build
         run: >
-          python build.py build
+          gvsbuild build
           --platform=${{ matrix.arch }}
           --vs-ver=${{ matrix.vstudio }}
           --same-python
           --enable-gi
           --py-wheel
-          --skip gtksourceview,emeus,clutter
+          --patches-root-dir=${{ github.workspace }}\patches
+          --skip gtksourceview4,emeus,clutter
           gtk3-full pycairo pygobject lz4 enchant
 
       - name: Restore git binary
