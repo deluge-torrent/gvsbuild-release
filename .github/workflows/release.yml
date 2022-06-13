@@ -36,7 +36,6 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
           architecture: ${{ matrix.arch }}
-          cache: 'pip'
           cache: 'poetry'
 
       - name: Install Build Deps
