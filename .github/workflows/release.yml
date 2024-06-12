@@ -11,12 +11,12 @@ on:
 
 jobs:
   build:
-    runs-on: windows-2019
+    runs-on: windows-2022
     strategy:
       matrix:
         python: ["3.9", "3.10"]
         platform: [x64, win32]
-        vstudio: [16]
+        vstudio: [17]
         include:
           - platform: x64
             arch: x64
@@ -25,14 +25,14 @@ jobs:
 
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           repository: wingtk/gvsbuild
           fetch-depth: 0
           ref: ${{ github.event.inputs.ref }}
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
           architecture: ${{ matrix.arch }}
@@ -52,11 +52,12 @@ jobs:
           gvsbuild build
           --platform=${{ matrix.arch }}
           --vs-ver=${{ matrix.vstudio }}
-          --same-python
           --enable-gi
           --py-wheel
-          --skip gtksourceview4,emeus,clutter
-          --patches-root-dir=${{ github.workspace }}\patches
+          --skip gtksourceview4
+          --skip emeus
+          --skip clutter
+          --patches-root-dir=${{ github.workspace }}\gvsbuild\patches
           gtk3-full pycairo pygobject lz4 enchant
 
       - name: Restore git binary
@@ -75,7 +76,7 @@ jobs:
         run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
 
       - name: Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           name: latest
           tag_name: latest
