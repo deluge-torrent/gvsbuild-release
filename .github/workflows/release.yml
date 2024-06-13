@@ -54,11 +54,8 @@ jobs:
           --vs-ver=${{ matrix.vstudio }}
           --enable-gi
           --py-wheel
-          --skip gtksourceview4
-          --skip emeus
-          --skip clutter
           --patches-root-dir=${{ github.workspace }}\gvsbuild\patches
-          gtk3-full pycairo pygobject lz4 enchant
+          gtk3 pycairo pygobject wing lz4 enchant hicolor-icon-theme adwaita-icon-theme
 
       - name: Restore git binary
         run: Rename-Item  "C:\Program Files\Git\usr\notbin" bin
