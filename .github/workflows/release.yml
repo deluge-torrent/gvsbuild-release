@@ -14,9 +14,11 @@ jobs:
     runs-on: windows-2022
     strategy:
       matrix:
-        python: ["3.9", "3.10"]
+        python: ["3.7", "3.9", "3.10"]
         platform: [x64, win32]
         vstudio: [17]
+        exclude:
+          - python: ${{ github.event.inputs.ref == 'latest' && '3.7' }}
         include:
           - platform: x64
             arch: x64
