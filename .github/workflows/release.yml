@@ -72,12 +72,12 @@ jobs:
 
       - name: Current Date
         id: date
-        run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
+        run: echo "date=$(date +'%Y-%m-%d')" >> GITHUB_OUTPUT
 
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
-          name: latest
-          tag_name: latest
+          name: ${{ github.event.inputs.ref }}
+          tag_name: ${{ github.event.inputs.ref }}
           body: gvsbuild-${{ steps.date.outputs.date }}
           files: "*.zip"
