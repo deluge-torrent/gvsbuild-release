@@ -4,22 +4,37 @@ name: Release
 on:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
-    inputs:
-      ref:
-        description: "Enter a gvfsbuild tag or commit to release"
-        default: ""
+   inputs:
+     fork:
+       description: "Enter a gvsbuild fork for the build with the latest stack, defaults to wingtk."
+       default: "wingtk"
+     ref:
+       description: "Enter a git ref for checking out the above repository, defaults to main."
+       default: "main"
 
 jobs:
   build:
     runs-on: windows-2022
     strategy:
       matrix:
-        python: ["3.7", "3.9", "3.10"]
+        python: ["3.9", "3.10"]
         platform: [x64, win32]
         vstudio: [17]
-        exclude:
-          - python: ${{ github.event.inputs.ref == 'latest' && '3.7' }}
+        fork: ["${{ github.event.inputs.fork }}"]
+        ref: ["${{ github.event.inputs.ref }}"]
         include:
+          - python: "3.7"
+            platform: x64
+            arch: x64
+            vstudio: 17
+            fork: "Lord-Kamina"
+            ref: "older"
+          - python: "3.7"
+            platform: win32
+            arch: x86
+            vstudio: 17
+            fork: "Lord-Kamina"
+            ref: "older"
           - platform: x64
             arch: x64
           - platform: win32
@@ -29,9 +44,9 @@ jobs:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v4
         with:
-          repository: Lord-Kamina/gvsbuild
+          repository: ${{ matrix.fork }}/gvsbuild
           fetch-depth: 0
-          ref: ${{ github.event.inputs.ref }}
+          ref: ${{ matrix.ref }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -72,12 +87,12 @@ jobs:
 
       - name: Current Date
         id: date
-        run: echo "date=$(date +'%Y-%m-%d')" >> GITHUB_OUTPUT
+        run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
 
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
-          name: ${{ github.event.inputs.ref }}
-          tag_name: ${{ github.event.inputs.ref }}
+          name: release
+          tag_name: release-${{ steps.date.outputs.date }}
           body: gvsbuild-${{ steps.date.outputs.date }}
           files: "*.zip"
