@@ -91,9 +91,13 @@ jobs:
         run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
 
       - name: Release
-        uses: softprops/action-gh-release@v2
+        uses: ncipollo/release-action@v1
         with:
           name: release-${{ steps.date.outputs.date }}
+          commit: ${{ github.sha }}
+          tag: release-${{ steps.date.outputs.date }}
           body: gvsbuild-${{ steps.date.outputs.date }}
-          make_latest: true
-          files: "*.zip"
+          makeLatest: true
+          allowUpdates: true
+          replacesArtifacts: true
+          artifacts: "*.zip"
