@@ -25,12 +25,24 @@ jobs:
       fail-fast: false
 
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      # Check out this repo for patches
+      - uses: actions/checkout@v4
+        with:
+          path: patches-repo
+
+      # Checks-out gvsbuild repository
       - uses: actions/checkout@v4
         with:
           repository: ${{ matrix.fork }}/gvsbuild
           fetch-depth: 0
           ref: ${{ matrix.ref }}
+          path: gvsbuild
+
+      # Apply glib patches
+      - name: Apply glib patches
+        shell: pwsh
+        run: |
+          ${{ github.workspace }}\patches-repo\apply-glib-patches.ps1 -gvsbuildRoot "${{ github.workspace }}\gvsbuild"
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -42,9 +54,11 @@ jobs:
         run: python -m pip install wheel build
 
       - name: Install gvsbuild tool
+        working-directory: gvsbuild
         run: python -m pip install .
 
       - name: Build
+        working-directory: gvsbuild
         run: >
           gvsbuild build
           --platform=${{ matrix.platform }}

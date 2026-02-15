@@ -1,0 +1,217 @@
+diff --git a/glib/giowin32.c b/glib/giowin32.c
+index ecc337a..619462d 100644
+--- a/glib/giowin32.c
++++ b/glib/giowin32.c
+@@ -157,6 +157,7 @@ struct _GIOWin32Channel {
+   /* Fields used by G_IO_WIN32_SOCKET channels */
+   int event_mask;
+   int last_events;
++  int last_close_error;      /* iErrorCode[FD_CLOSE_BIT] from WSAEnumNetworkEvents */
+   HANDLE event;
+   gboolean write_would_have_blocked;
+   gboolean ever_writable;
+@@ -284,6 +285,7 @@ g_io_channel_win32_init (GIOWin32Channel *channel)
+ 
+   channel->event_mask = 0;
+   channel->last_events = 0;
++  channel->last_close_error = 0;
+   channel->event = NULL;
+   channel->write_would_have_blocked = FALSE;
+   channel->ever_writable = FALSE;
+@@ -773,22 +775,46 @@ g_io_win32_prepare (GSource *source,
+ 		     channel->fd, (HANDLE) watch->pollfd.fd,
+ 		     event_mask_to_string (event_mask));
+ 	  if (WSAEventSelect (channel->fd, (HANDLE) watch->pollfd.fd,
+-			      event_mask) == SOCKET_ERROR)
+-	    if (channel->debug)
+-	      {
+-		gchar *emsg = g_win32_error_message (WSAGetLastError ());
++			      event_mask) != SOCKET_ERROR)
++	    channel->event_mask = event_mask;
++	  else if (channel->debug)
++	    {
++	      gchar *emsg = g_win32_error_message (WSAGetLastError ());
+ 
+-		g_print (" failed: %s", emsg);
+-		g_free (emsg);
+-	      }
+-	  channel->event_mask = event_mask;
++	      g_print (" failed: %s", emsg);
++	      g_free (emsg);
++	    }
+ 
+ 	  if (channel->debug)
+-	    g_print ("\n  setting last_events=0");
+-	  channel->last_events = 0;
++	    g_print ("\n  setting last_events=0%s",
++		     (channel->last_events & FD_CLOSE) ? " (preserving FD_CLOSE)" : "");
++	  channel->last_events = (channel->last_events & FD_CLOSE);
++
++	  /* FD_CLOSE is edge-triggered: if the peer closed while no
++	   * watch was active, the event was lost.  Probe with a zero-
++	   * byte recv(MSG_PEEK) to detect this.  If the socket has EOF
++	   * (returns 0), synthesise FD_CLOSE so check() delivers
++	   * G_IO_HUP.
++	   */
++	  if (!(channel->last_events & FD_CLOSE))
++	    {
++	      char dummy;
++	      int ret = recv (channel->fd, &dummy, 1, MSG_PEEK);
++
++	      if (channel->debug)
++		g_print ("\n  recv(MSG_PEEK) on sock=%d returned %d (err=%d)",
++			 channel->fd, ret, (ret == SOCKET_ERROR) ? WSAGetLastError () : 0);
++
++	      if (ret == 0)
++		{
++		  if (channel->debug)
++		    g_print (" -> synthesising FD_CLOSE");
++		  channel->last_events |= FD_CLOSE;
++		  WSASetEvent ((WSAEVENT) watch->pollfd.fd);
++		}
++	    }
+ 
+ 	  if ((event_mask & FD_WRITE) &&
+-	      channel->ever_writable &&
+ 	      !channel->write_would_have_blocked)
+ 	    {
+ 	      if (channel->debug)
+@@ -871,8 +897,9 @@ g_io_win32_check (GSource *source)
+       if (channel->last_events & FD_WRITE)
+ 	{
+ 	  if (channel->debug)
+-	    g_print (" sock=%d event=%p last_events has FD_WRITE",
+-		     channel->fd, (HANDLE) watch->pollfd.fd);
++	    g_print (" sock=%d event=%p last_events has FD_WRITE%s",
++		     channel->fd, (HANDLE) watch->pollfd.fd,
++		     (channel->last_events & FD_CLOSE) ? " (FD_CLOSE also in last_events!)" : "");
+ 	}
+       else
+ 	{
+@@ -886,9 +913,17 @@ g_io_win32_check (GSource *source)
+ 		     channel->fd, 
+ 		     event_mask_to_string (events.lNetworkEvents));
+ 	  
++	  if (events.lNetworkEvents & FD_CLOSE)
++	    {
++	      if (channel->debug)
++		g_print ("\n  FD_CLOSE received! iErrorCode[FD_CLOSE_BIT]=%d",
++			 events.iErrorCode[FD_CLOSE_BIT]);
++	    }
++
+ 	  if (watch->pollfd.revents != 0 &&
+ 	      events.lNetworkEvents == 0 &&
+-	      !(channel->event_mask & FD_WRITE))
++	      !(channel->event_mask & FD_WRITE) &&
++	      !(channel->last_events & FD_CLOSE))
+ 	    {
+ 	      channel->event_mask = 0;
+ 	      if (channel->debug)
+@@ -902,12 +937,43 @@ g_io_win32_check (GSource *source)
+ 	    }
+ 	  else if (events.lNetworkEvents & FD_WRITE)
+ 	    channel->ever_writable = TRUE;
+-	  channel->last_events = events.lNetworkEvents;
++	  else if (watch->pollfd.revents != 0 &&
++		   events.lNetworkEvents == 0 &&
++		   (channel->event_mask & FD_WRITE) &&
++		   !channel->ever_writable)
++	    {
++	      /* Event was manually set in prepare() via WSASetEvent() for a
++	       * newly registered write watch on an already-connected socket.
++	       * FD_WRITE won't fire because it's edge-triggered (only on
++	       * connect or after WSAEWOULDBLOCK recovery). Mark the socket
++	       * as writable and reset the event to prevent busy-looping.
++	       */
++	      channel->ever_writable = TRUE;
++	      ResetEvent ((HANDLE) watch->pollfd.fd);
++	    }
++	  /* Preserve FD_CLOSE across polls: it is edge-triggered and
++	   * WSAEnumNetworkEvents() only reports it once, but the
++	   * application needs G_IO_HUP on every subsequent check()
++	   * until the watch is removed. Also preserve the error code
++	   * from iErrorCode[FD_CLOSE_BIT] so we can distinguish
++	   * aborted connections from clean shutdowns.
++	   */
++	  if (events.lNetworkEvents & FD_CLOSE)
++	    channel->last_close_error = events.iErrorCode[FD_CLOSE_BIT];
++	  channel->last_events = events.lNetworkEvents
++	    | (channel->last_events & FD_CLOSE);
+ 	}
+ 
+       watch->pollfd.revents = 0;
+       if (channel->last_events & (FD_READ | FD_ACCEPT))
+ 	watch->pollfd.revents |= G_IO_IN;
++      /* On error conditions (aborted connection), also set G_IO_IN to allow
++       * the application to read from the socket and retrieve the error via
++       * recv(). This matches Linux poll() behavior where POLLIN is set on
++       * error conditions to allow error retrieval via read().
++       */
++      if (channel->last_close_error != 0)
++	watch->pollfd.revents |= G_IO_IN;
+ 
+       if (channel->last_events & FD_WRITE)
+ 	watch->pollfd.revents |= G_IO_OUT;
+@@ -921,10 +987,34 @@ g_io_win32_check (GSource *source)
+ 	      if (events.iErrorCode[FD_CONNECT_BIT] == 0)
+ 		watch->pollfd.revents |= G_IO_OUT;
+ 	      else
+-		watch->pollfd.revents |= (G_IO_HUP | G_IO_ERR);
++		{
++		  /* Connection error (refused, timeout, etc.) - set IN to
++		   * match Linux poll() behavior and allow error retrieval.
++		   */
++		  watch->pollfd.revents |= (G_IO_IN | G_IO_HUP | G_IO_ERR);
++		}
+ 	    }
+-	  if (watch->pollfd.revents == 0 && (channel->last_events & (FD_CLOSE)))
+-	    watch->pollfd.revents |= G_IO_HUP;
++	}
++
++      /* FD_CLOSE is edge-triggered: WSAEnumNetworkEvents() reports it
++       * only once.  Always map it to G_IO_HUP regardless of what other
++       * events (FD_READ, FD_WRITE) arrived in the same call, otherwise
++       * the application never learns the peer closed the connection.
++       *
++       * If iErrorCode[FD_CLOSE_BIT] indicates an error (WSAECONNRESET,
++       * WSAECONNABORTED, etc.), also set G_IO_ERR to distinguish aborted
++       * connections from clean shutdowns. This allows applications to
++       * properly differentiate between ConnectionDone and ConnectionLost.
++       */
++      if (channel->last_events & FD_CLOSE)
++	{
++	  if (channel->debug)
++	    g_print ("\n  FD_CLOSE(err=%d) -> G_IO_HUP%s",
++		     channel->last_close_error,
++		     channel->last_close_error ? "+G_IO_ERR" : "");
++	  watch->pollfd.revents |= G_IO_HUP;
++	  if (channel->last_close_error != 0)
++	    watch->pollfd.revents |= G_IO_ERR;
+ 	}
+ 
+       /* Regardless of WSAEnumNetworkEvents() result, if watching for
+@@ -1008,6 +1098,8 @@ g_io_win32_finalize (GSource *source)
+     case G_IO_WIN32_SOCKET:
+       if (channel->debug)
+ 	g_print (" SOCK sock=%d", channel->fd);
++      channel->event_mask = 0;
++      channel->last_close_error = 0;
+       break;
+ 
+     default:
+@@ -1602,6 +1694,15 @@ g_io_win32_sock_create_watch (GIOChannel    *channel,
+   if (win32_channel->event == 0)
+     win32_channel->event = WSACreateEvent ();
+ 
++  /* Reset event_mask to force WSAEventSelect to be re-called in prepare().
++   * Without this, re-registering a watch (source_remove + io_add_watch) would
++   * skip WSAEventSelect because the cached event_mask matches, even though the
++   * previous watch's event association may have been invalidated.
++   * See: https://gitlab.gnome.org/GNOME/glib/-/issues/214
++   */
++  win32_channel->event_mask = 0;
++  win32_channel->last_close_error = 0;
++
+   watch->pollfd.fd = (gintptr) win32_channel->event;
+   watch->pollfd.events = condition;
+   
