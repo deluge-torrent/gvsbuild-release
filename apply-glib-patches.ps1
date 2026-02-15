@@ -14,7 +14,8 @@ $ErrorActionPreference = "Stop"
 # Paths
 $patchSourceDir = "$PSScriptRoot\gvsbuild\patches\glib"
 $glibPy = "$gvsbuildRoot\gvsbuild\projects\glib.py"
-$patchDestDir = "$gvsbuildRoot\gvsbuild\patches\glib"
+$patchDestDirGlib = "$gvsbuildRoot\gvsbuild\patches\glib"
+$patchDestDirGlibBase = "$gvsbuildRoot\gvsbuild\patches\glib-base"
 
 Write-Host "Applying glib patches to gvsbuild..." -ForegroundColor Cyan
 Write-Host ""
@@ -84,17 +85,27 @@ if ($conflicts.Count -gt 0) {
 Write-Host "No conflicts detected" -ForegroundColor Green
 Write-Host ""
 
-# Copy patches
-Write-Host "Copying patches to $patchDestDir..." -ForegroundColor Cyan
+# Copy patches to both glib and glib-base directories
+Write-Host "Copying patches..." -ForegroundColor Cyan
 
-if (-not (Test-Path $patchDestDir)) {
-    New-Item -ItemType Directory -Path $patchDestDir -Force | Out-Null
+# Ensure directories exist
+if (-not (Test-Path $patchDestDirGlib)) {
+    New-Item -ItemType Directory -Path $patchDestDirGlib -Force | Out-Null
+}
+if (-not (Test-Path $patchDestDirGlibBase)) {
+    New-Item -ItemType Directory -Path $patchDestDirGlibBase -Force | Out-Null
 }
 
 foreach ($patch in $patchesToApply) {
-    $destPath = Join-Path $patchDestDir $patch.Name
-    Copy-Item $patch.FullName $destPath -Force
-    Write-Host "  [OK] Copied $($patch.Name)" -ForegroundColor Green
+    # Copy to glib directory
+    $destPathGlib = Join-Path $patchDestDirGlib $patch.Name
+    Copy-Item $patch.FullName $destPathGlib -Force
+
+    # Copy to glib-base directory
+    $destPathGlibBase = Join-Path $patchDestDirGlibBase $patch.Name
+    Copy-Item $patch.FullName $destPathGlibBase -Force
+
+    Write-Host "  [OK] Copied $($patch.Name) to glib/ and glib-base/" -ForegroundColor Green
 }
 
 Write-Host ""
