@@ -17,8 +17,8 @@ jobs:
     runs-on: windows-2022
     strategy:
       matrix:
-        python: ["3.9", "3.10", "3.11", "3.12"]
-        platform: [x64,x86]
+        python: ["3.10", "3.13"]
+        platform: [x64]
         vstudio: [17]
         fork: ["${{ github.event.inputs.fork }}"]
         ref: ["${{ github.event.inputs.ref }}"]
