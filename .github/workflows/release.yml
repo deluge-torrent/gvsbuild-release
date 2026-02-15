@@ -17,28 +17,12 @@ jobs:
     runs-on: windows-2022
     strategy:
       matrix:
-        python: ["3.9", "3.10"]
-        platform: [x64, win32]
+        python: ["3.9", "3.10", "3.11", "3.12"]
+        platform: [x64,x86]
         vstudio: [17]
         fork: ["${{ github.event.inputs.fork }}"]
         ref: ["${{ github.event.inputs.ref }}"]
-        include:
-          - python: "3.7"
-            platform: x64
-            arch: x64
-            vstudio: 17
-            fork: "Lord-Kamina"
-            ref: "older"
-          - python: "3.7"
-            platform: win32
-            arch: x86
-            vstudio: 17
-            fork: "Lord-Kamina"
-            ref: "older"
-          - platform: x64
-            arch: x64
-          - platform: win32
-            arch: x86
+      fail-fast: false
 
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
@@ -60,22 +44,15 @@ jobs:
       - name: Install gvsbuild tool
         run: python -m pip install .
 
-      - name: Move git binary
-        # Temporarily move preinstalled git to prevent errors related to cygwin.
-        run: Rename-Item "C:\Program Files\Git\usr\bin" notbin
-
       - name: Build
         run: >
           gvsbuild build
-          --platform=${{ matrix.arch }}
-          --vs-ver=${{ matrix.vstudio }}
+          --platform=${{ matrix.platform }}
+          --configuration=release
+          --ninja-opts -j2
           --enable-gi
           --py-wheel
-          --patches-root-dir=${{ github.workspace }}\gvsbuild\patches
-          gtk3 pycairo pygobject wing lz4 enchant hicolor-icon-theme adwaita-icon-theme
-
-      - name: Restore git binary
-        run: Rename-Item  "C:\Program Files\Git\usr\notbin" bin
+          gtk3 pygobject lz4 enchant adwaita-icon-theme
 
       - name: Zip Bundle
         run: >
@@ -83,7 +60,7 @@ jobs:
           ${{ github.workspace }}/${{ env.release_name }}.zip
           "C:\gtk-build\gtk\${{matrix.platform}}\release"
         env:
-          release_name: "gvsbuild-py${{ matrix.python }}-vs${{ matrix.vstudio }}-${{ matrix.arch }}"
+          release_name: "gvsbuild-py${{ matrix.python }}-vs${{ matrix.vstudio }}-${{ matrix.platform }}"
 
       - name: Current Date
         id: date
