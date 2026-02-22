@@ -4,47 +4,75 @@ name: Release
 on:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
-   inputs:
-     fork:
-       description: "Enter a gvsbuild fork for the build with the latest stack, defaults to wingtk."
-       default: "wingtk"
-     ref:
-       description: "Enter a git ref for checking out the above repository, defaults to main."
-       default: "main"
+    inputs:
+      fork:
+        description: "Enter a gvsbuild fork for the build with the latest stack, defaults to wingtk."
+        default: "wingtk"
+      ref:
+        description: "Enter a git ref for checking out the above repository, defaults to main."
+        default: "main"
+      makeLatest:
+        description: "Mark this release as latest"
+        type: boolean
+        default: false
+      prerelease:
+        description: "Mark this release as pre-release (test/beta)"
+        type: boolean
+        default: false
 
 jobs:
   build:
     runs-on: windows-2022
     strategy:
       matrix:
-        python: ["3.9", "3.10", "3.11", "3.12"]
-        platform: [x64,x86]
+        python: ["3.10", "3.13"]
+        platform: [x64]
         vstudio: [17]
-        fork: ["${{ github.event.inputs.fork }}"]
-        ref: ["${{ github.event.inputs.ref }}"]
       fail-fast: false
 
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v4
+      # Check out this repo for patches
+      - uses: actions/checkout@v6
         with:
-          repository: ${{ matrix.fork }}/gvsbuild
+          path: patches-repo
+
+      # Checks-out gvsbuild repository
+      - uses: actions/checkout@v6
+        with:
+          repository: ${{ github.event.inputs.fork }}/gvsbuild
           fetch-depth: 0
-          ref: ${{ matrix.ref }}
+          ref: ${{ github.event.inputs.ref }}
+          path: gvsbuild
+
+      # Apply glib patches
+      - name: Apply glib patches
+        shell: pwsh
+        run: |
+          ${{ github.workspace }}\patches-repo\apply-glib-patches.ps1 -gvsbuildRoot "${{ github.workspace }}\gvsbuild"
+
+      # Get gvsbuild commit SHA for release naming
+      - name: Get gvsbuild commit
+        id: gvsbuild-commit
+        working-directory: gvsbuild
+        shell: bash
+        run: echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
-          architecture: ${{ matrix.arch }}
+          architecture: ${{ matrix.platform }}
 
       - name: Install Build Deps
-        run: python -m pip install wheel build
+        # Pin setuptools<81 to avoid breaking g-ir-scanner on Windows
+        run: python -m pip install "setuptools<81" wheel build
 
       - name: Install gvsbuild tool
+        working-directory: gvsbuild
         run: python -m pip install .
 
       - name: Build
+        working-directory: gvsbuild
         run: >
           gvsbuild build
           --platform=${{ matrix.platform }}
@@ -62,19 +90,17 @@ jobs:
         env:
           release_name: "gvsbuild-py${{ matrix.python }}-vs${{ matrix.vstudio }}-${{ matrix.platform }}"
 
-      - name: Current Date
-        id: date
-        shell: bash
-        run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
-
       - name: Release
         uses: ncipollo/release-action@v1
         with:
-          name: release-${{ steps.date.outputs.date }}
+          name: gvsbuild-${{ github.event.inputs.ref }}-${{ steps.gvsbuild-commit.outputs.sha }}
           commit: ${{ github.sha }}
-          tag: release-${{ steps.date.outputs.date }}
-          body: gvsbuild-${{ steps.date.outputs.date }}
-          makeLatest: true
+          tag: gvsbuild-${{ github.event.inputs.ref }}-${{ steps.gvsbuild-commit.outputs.sha }}
+          body: |
+            gvsbuild build from `${{ github.event.inputs.fork }}/gvsbuild@${{ github.event.inputs.ref }}`
+            gvsbuild commit: `${{ steps.gvsbuild-commit.outputs.sha }}`
+          makeLatest: ${{ github.event.inputs.makeLatest == 'true' }}
+          prerelease: ${{ github.event.inputs.prerelease == 'true' }}
           allowUpdates: true
           replacesArtifacts: true
           artifacts: "*.zip"
