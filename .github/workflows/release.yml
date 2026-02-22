@@ -32,12 +32,12 @@ jobs:
 
     steps:
       # Check out this repo for patches
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           path: patches-repo
 
       # Checks-out gvsbuild repository
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: ${{ github.event.inputs.fork }}/gvsbuild
           fetch-depth: 0
@@ -58,7 +58,7 @@ jobs:
         run: echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
           architecture: ${{ matrix.platform }}
