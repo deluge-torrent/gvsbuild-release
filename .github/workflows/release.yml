@@ -64,7 +64,8 @@ jobs:
           architecture: ${{ matrix.platform }}
 
       - name: Install Build Deps
-        run: python -m pip install wheel build
+        # Pin setuptools<81 to avoid breaking g-ir-scanner on Windows
+        run: python -m pip install "setuptools<81" wheel build
 
       - name: Install gvsbuild tool
         working-directory: gvsbuild
